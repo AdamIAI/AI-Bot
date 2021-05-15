@@ -1,6 +1,8 @@
 from asyncio import sleep
-from datetime import datetime
+import datetime as dt
 from glob import glob
+import sqlite3
+import json
 
 import discord
 from discord import Intents
@@ -71,6 +73,11 @@ class Bot(BotBase):
         db.multiexec("INSERT OR IGNORE INTO exp (UserID) VALUES (?)",
                      ((member.id,) for member in self.guild.members if not member.bot))
 
+        db.multiexec("INSERT OR IGNORE INTO members (UserID) VALUES (?)", ((
+            member.id,) for member in self.guild.members if not member.bot))
+
+        db.open_bank()
+
         to_remove = []
         stored_members = db.column("SELECT UserID FROM exp")
         for id_ in stored_members:
@@ -87,7 +94,7 @@ class Bot(BotBase):
 
         if ctx.command is not None and ctx.guild is not None:
             if message.author.id in self.banlist:
-                await ctx.send("You are banned from using commands.")
+                await ctx.send("You are banned from using commands")
 
             elif not self.ready:
                 await ctx.send("I'm not ready to receive commands. Please wait a few seconds.")
@@ -127,7 +134,7 @@ class Bot(BotBase):
 
     async def on_ready(self):
         if not self.ready:
-            await self.change_presence(activity=discord.Game(name="Break Adam's Monitor"))
+            # await self.change_presence(activity=discord.Game(name="Break Adam's Monitor"))
             self.guild = self.get_guild(836317762657714217)
             self.stdout = self.get_channel(836317763139665975)
             self.scheduler.start()
@@ -138,6 +145,35 @@ class Bot(BotBase):
 
         else:
             print("Bot Reconnected")
+
+    async def on_guild_join(self, guild):
+
+        with open("prefixes.json", "r") as f:
+            prefixes = json.load(f)
+
+        prefixes[str(guild.id)] = "a!"
+
+        pre = prefixes[str(guild.id)]
+
+        with open("prefixes.json", "w") as f:
+            json.dump(prefixes, f)
+
+        db.execute("UPDATE guilds SET Prefix = ? WHERE GuildID = ?",
+                   pre, guild.id)
+
+        db.multiexec("INSERT OR IGNORE INTO exp (UserID) VALUES (?)",
+                     ((member.id,) for member in self.guild.members if not member.bot))
+
+        to_remove = []
+        stored_members = db.column("SELECT UserID FROM exp")
+        for id_ in stored_members:
+            if not self.guild.get_member(id_):
+                to_remove.append(id_)
+
+        db.multiexec("DELETE FROM exp WHERE UserID = ?",
+                     ((id_,) for id_ in to_remove))
+
+        db.commit()
 
 
 bot = Bot()

@@ -1,5 +1,8 @@
+import discord
 from discord import Intents
 from os.path import isfile
+import datetime as dt
+import random
 from sqlite3 import connect
 
 from apscheduler.triggers.cron import CronTrigger
@@ -9,6 +12,7 @@ BUILD_PATH = "./data/db/build.sql"
 
 cxn = connect(DB_PATH, check_same_thread=False)
 cur = cxn.cursor()
+cxn.execute("PRAGMA foreign_keys = ON;")
 
 
 def with_commit(func):
@@ -73,3 +77,9 @@ def multiexec(command, valueset):
 def scriptexec(path):
     with open(path, "r", encoding="utf-8") as script:
         cur.executescript(script.read())
+
+
+def open_bank():
+    cxn.execute(
+        "INSERT OR IGNORE INTO bank (GuildID, UserID) VALUES (?,?)", (0, 0))
+    cxn.commit()

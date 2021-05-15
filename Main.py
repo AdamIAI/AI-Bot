@@ -1,4 +1,5 @@
-from discord import Intents
+from discord import Intents, message
+from discord.embeds import Embed
 from discord.ext import commands
 from pathlib import Path
 import discord
@@ -24,15 +25,21 @@ import time
 from decimal import Decimal
 from lib.db import db
 from lib.bot import Bot
+from lib.bot import get_prefix
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from discord.ext.commands import when_mentioned_or, command, has_permissions
 
 
 def get_prefix(client, message):
 
-    with open("prefixes.json", "r") as f:
-        prefixes = json.load(f)
+    #    with open("prefixes.json", "r") as f:
+    #        prefixes = json.load(f)
 
-    return prefixes[str(message.guild.id)]
+    #    return prefixes[str(message.guild.id)]
+
+    prefix = db.field(
+        "SELECT Prefix FROM guilds WHERE GuildID = ?", message.guild.id)
+    return when_mentioned_or(prefix)(bot, message)
 
 
 client = Bot(command_prefix=get_prefix,
@@ -41,11 +48,21 @@ client = Bot(command_prefix=get_prefix,
 client.remove_command("help")
 
 
-mainshop = [{"name": "Watch", "price": 100, "description": "Time"},
-            {"name": "Laptop", "price": 1000, "description": "Work"},
-            {"name": "PC", "price": 10000, "description": "Gaming"}]
+mainshop = [{"name": "Investor", "price": 500, "description": "Badge that shows you have started using the economy features"},
+            {"name": "Banana", "price": 1000,
+                "description": "Gives you Banana in your inventory and Gives you banana role"},
+            {"name": "Entrepeneur", "price": 10000,
+                "description": "Badge that shows You are a Professional Economy User"},
+            {"name": "Capitalist", "price": 20000, "description": "Badge that shows you have Mastered the Economy"}]
 IGNORE_EXCEPTIONS = (CommandNotFound, BadArgument)
-filtered_words = ["daddy", "blyat", "rail me"]
+filtered_words = ["daddy", "blyat", "rail me",
+                  "nigg", "hitler", "fagg", "nazi", "autswitz"]
+stfu = ["kam", "r slur"]
+humour = ["I-"]
+stop = ["msgdisable"]
+start = ["msgenable"]
+alpha = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q",
+         "r", "s", "t", "u", "v", "w", "x", "y", "z", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
 # Dashboard
 
 
@@ -56,35 +73,35 @@ async def on_ready():
     print("Bot is Online")
 
 
-@client.event
-async def on_guild_join(guild, ctx):
+#    @client.event
+#   async def on_guild_join(ctx, guild):
 
-    with open("prefixes.json", "r") as f:
-        prefixes = json.load(f)
-
-    prefixes[str(guild.id)] = "a!"
-
-    pre = prefixes[str(guild.id)]
-
-    with open("prefixes.json", "w") as f:
-        json.dump(prefixes, f)
-
-    db.execute("UPDATE guilds SET Prefix = ? WHERE GuildID = ?",
-               pre, ctx.guild.id)
-
-    db.multiexec("INSERT OR IGNORE INTO exp (UserID) VALUES (?)",
-                 ((member.id,) for member in self.guild.members if not member.bot))
-
-    to_remove = []
-    stored_members = db.column("SELECT UserID FROM exp")
-    for id_ in stored_members:
-        if not self.guild.get_member(id_):
-            to_remove.append(id_)
-
-    db.multiexec("DELETE FROM exp WHERE UserID = ?",
-                 ((id_,) for id_ in to_remove))
-
-    db.commit()
+#       with open("prefixes.json", "r") as f:
+#            prefixes = json.load(f)
+#
+#        prefixes[str(guild.id)] = "a!"
+#
+#        pre = prefixes[str(guild.id)]
+#
+#        with open("prefixes.json", "w") as f:
+#            json.dump(prefixes, f)
+#
+#        db.execute("UPDATE guilds SET Prefix = ? WHERE GuildID = ?",
+#                   pre, ctx.guild.id)
+#
+#        db.multiexec("INSERT OR IGNORE INTO exp (UserID) VALUES (?)",
+#                     ((member.id,) for member in self.guild.members if not member.bot))
+#
+#        to_remove = []
+#        stored_members = db.column("SELECT UserID FROM exp")
+#        for id_ in stored_members:
+#            if not self.guild.get_member(id_):
+#                to_remove.append(id_)
+#
+#        db.multiexec("DELETE FROM exp WHERE UserID = ?",
+#                     ((id_,) for id_ in to_remove))
+#
+#        db.commit()
 
 
 # @client.event
@@ -107,6 +124,16 @@ async def on_message(msg):
             except:
                 return
 
+    for word in stfu:
+        if word in msg.content:
+            await msg.delete()
+            await msg.channel.send(f"{msg.author.name}, do me a favour and actually shut the fuck up you set 8 dumbass")
+
+    for word in humour:
+        if word in msg.content:
+            await msg.delete()
+            await msg.channel.send(f"{msg.author.name}, come back when you have an actual sense of humour :)")
+
     try:
         if msg.mentions[0] == client.user:
 
@@ -121,15 +148,6 @@ async def on_message(msg):
         pass
 
     await client.process_commands(msg)
-
-
-@client.event
-async def on_error(self, ctx, err, *args, **kwargs):
-    if err == "on_command_error":
-        await args[0].send("Something went wrong")
-
-    await ctx.send("An error occured")
-    raise
 
 
 @client.event
@@ -148,16 +166,6 @@ async def on_command_error(ctx, error):
 # Commands
 
 
-@client.command()
-async def load(ctx, extension):
-    client.load_extension(f'cogs.{extension}')
-
-
-@client.command()
-async def unload(ctx, extension):
-    client.unload_extension(f'cogs.{extension}')
-
-
 @client.group(invoke_without_command=True)
 async def help(ctx):
     with open("prefixes.json", "r") as f:
@@ -171,7 +179,9 @@ async def help(ctx):
     em.add_field(
         name="Economy", value=f"`{pre}help economy`")
     em.add_field(name="Music", value=f"`{pre}help music`")
-    em.set_footer(text="Powered By Adam Ibrahim")
+    em.add_field(name="Invite Me",
+                 value=f"To invite this bot to you server [Click Here](https://discord.com/api/oauth2/authorize?client_id=805808053315436544&permissions=8&redirect_uri=http%3A%2F%2F127.0.0.1%3A5000%2Fcallback&scope=bot)!")
+    em.set_footer(text="Powered By AI")
     await ctx.send(embed=em)
 
 
@@ -192,7 +202,9 @@ async def moderation(ctx):
                  value="Can only be used by members with 'Administrator' permissions")
     em.add_field(name=f"`{pre}mute <member>`",
                  value="Can only be used by members with 'Kick Member' permissions")
-    em.set_footer(text="Powered By Adam Ibrahim")
+    em.add_field(name="Invite Me",
+                 value=f"To invite this bot to you server [Click Here](https://discord.com/api/oauth2/authorize?client_id=805808053315436544&permissions=8&redirect_uri=http%3A%2F%2F127.0.0.1%3A5000%2Fcallback&scope=bot)!", inline=False)
+    em.set_footer(text="Powered By AI")
     await ctx.send(embed=em)
 
 
@@ -231,7 +243,9 @@ async def economy(ctx):
                  value="Game of chance")
     em.add_field(name=f"`{pre}leaderboard`",
                  value="Shows top 10 richest members")
-    em.set_footer(text="Powered By Adam Ibrahim")
+    em.add_field(name="Invite Me",
+                 value=f"To invite this bot to you server [Click Here](https://discord.com/api/oauth2/authorize?client_id=805808053315436544&permissions=8&redirect_uri=http%3A%2F%2F127.0.0.1%3A5000%2Fcallback&scope=bot)!", inline=False)
+    em.set_footer(text="Powered By AI")
     await ctx.send(embed=em)
 
 
@@ -260,7 +274,9 @@ async def music(ctx):
                  value="Makes Bot leave your voice channel")
     em.add_field(name=f"`{pre}queue`",
                  value="Shows upcoming songs in queue")
-    em.set_footer(text="Powered By Adam Ibrahim")
+    em.add_field(name="Invite Me",
+                 value=f"To invite this bot to you server [Click Here](https://discord.com/api/oauth2/authorize?client_id=805808053315436544&permissions=8&redirect_uri=http%3A%2F%2F127.0.0.1%3A5000%2Fcallback&scope=bot)!", inline=False)
+    em.set_footer(text="Powered By AI")
     await ctx.send(embed=em)
 
 
@@ -286,14 +302,17 @@ async def changeprefix(ctx, prefix):
 @commands.has_permissions(administrator=True)
 async def clear(ctx, amount=5):
     await ctx.channel.purge(limit=amount + 1)
+    await ctx.send(f"I have cleared `{amount} messages`!")
+    time.sleep(2)
+    await ctx.channel.purge(limit=1)
 
 # Kick/Ban
 
 
 @client.command()
 @commands.has_permissions(kick_members=True)
-async def kick(ctx, member: discord.Member, *, reason=None, amount=1):
-    await ctx.channel.purge(limit=amount)
+async def kick(ctx, member: discord.Member, *, reason=None):
+    await ctx.channel.purge(limit=1)
     try:
         await member.send(f"You have been kicked from **{(member.guild.name)}** because {reason}")
     except:
@@ -303,8 +322,8 @@ async def kick(ctx, member: discord.Member, *, reason=None, amount=1):
 
 @client.command()
 @commands.has_permissions(ban_members=True)
-async def ban(ctx, member: discord.Member, *, reason=None, amount=1):
-    await ctx.channel.purge(limit=amount)
+async def ban(ctx, member: discord.Member, *, reason=None):
+    await ctx.channel.purge(limit=1)
     if reason != None:
         try:
             await member.send(f"You have been banned from **{(member.guild.name)}** because {reason}")
@@ -322,23 +341,43 @@ async def unban(ctx, *, member):
     for banned_entry in banned_users:
         user = banned_entry.user
 
-        if(user.name, user.discrimintion) == (member_name, member_disc):
+        if(user.name, user.discriminator) == (member_name, member_disc):
             await ctx.guild.unban(user)
             await ctx.send(member_name + " has been unbanned")
+            return
 
-    await ctx.send(member + "was not found")
+    await ctx.send(member + " was not found")
 
 
 @client.command(aliases=['m'])
 @commands.has_permissions(kick_members=True)
-async def mute(ctx, member: discord.Member, amount=1):
-    await ctx.channel.purge(limit=amount)
-    muted_role = ctx.guild.get_role(836317762741338232)
+async def mute(ctx, member: discord.Member):
+    await ctx.channel.purge(limit=1)
+    mutedRole = discord.utils.get(ctx.guild.roles, name="Muted")
+    if not mutedRole:
+        mutedRole = await ctx.guild.create_role(name="Muted")
 
-    await member.add_roles(muted_role)
+        for channel in ctx.guild.channels:
+            await channel.set_permissions(mutedRole, speak=False, send_messages=False, read_message_history=True, read_messages=True)
 
+    await member.add_roles(mutedRole)
     await ctx.send(f"{member.mention} has been muted")
 
+
+@client.command(aliases=['um'])
+@commands.has_permissions(kick_members=True)
+async def unmute(ctx, member: discord.Member):
+    mutedRole = discord.utils.get(ctx.guild.roles, name="Muted")
+    try:
+        await member.remove_roles(mutedRole)
+        await ctx.send(f"{member.mention} was unmuted")
+    except:
+        await ctx.send(f"{member.display_name} is not muted")
+        if not mutedRole:
+            mutedRole = await ctx.guild.create_role(name="Muted")
+
+            for channel in ctx.guild.channels:
+                await channel.set_permissions(mutedRole, speak=False, send_messages=False, read_message_history=True, read_messages=True)
 
 # Economy System
 Working = False
@@ -391,14 +430,59 @@ async def claim(ctx):
             description=f"{ctx.author.name}, here is your paycheck for your last work. You gained **{workMon}** :coin:", color=discord.Color.red())
         await ctx.send(embed=em)
     else:
-        if mins == 0:
-            em = discord.Embed(
-                description=f"You are still working, come back in **{secs} seconds** to claim your paycheck of {workMon} :coin:", color=discord.Color.red())
-            await ctx.send(embed=em)
-        else:
-            em = discord.Embed(
-                description=f"You are still working, come back in **{mins} minutes** to claim your paycheck of {workMon} :coin:", color=discord.Color.red())
-            await ctx.send(embed=em)
+        await work_error(ctx, CommandOnCooldown)
+
+
+@client.command()
+async def Bank(ctx, member: discord.Member = None):
+    if member == None:
+        await open_account(ctx.author)
+        user = ctx.author
+        users = await get_bank_data()
+
+        bank_amt = users[str(user.id)]["bank"]
+
+        em = discord.Embed(
+            title=f"{ctx.author.name}'s balance", color=ctx.author.color)
+        em.add_field(name="Bank Balance", value=bank_amt)
+        await ctx.send(embed=em)
+    else:
+        await open_account(member)
+        user = member
+        users = await get_bank_data()
+
+        bank_amt = users[str(user.id)]["bank"]
+
+        em = discord.Embed(
+            title=f"{member.name}'s balance", color=member.color)
+        em.add_field(name="Bank Balance", value=int(bank_amt))
+        await ctx.send(embed=em)
+
+
+@client.command()
+async def Wallet(ctx, member: discord.Member = None):
+    if member == None:
+        await open_account(ctx.author)
+        user = ctx.author
+        users = await get_bank_data()
+
+        wallet_amt = users[str(user.id)]["wallet"]
+
+        em = discord.Embed(
+            title=f"{ctx.author.name}'s balance", color=ctx.author.color)
+        em.add_field(name="Wallet Balance", value=wallet_amt)
+        await ctx.send(embed=em)
+    else:
+        await open_account(member)
+        user = member
+        users = await get_bank_data()
+
+        wallet_amt = users[str(user.id)]["wallet"]
+
+        em = discord.Embed(
+            title=f"{member.name}'s balance", color=member.color)
+        em.add_field(name="Wallet Balance", value=int(wallet_amt))
+        await ctx.send(embed=em)
 
 
 @client.command()
@@ -426,8 +510,8 @@ async def balance(ctx, member: discord.Member = None):
 
         em = discord.Embed(
             title=f"{member.name}'s balance", color=member.color)
-        em.add_field(name="Wallet Balance", value=wallet_amt)
-        em.add_field(name="Bank Balance", value=bank_amt)
+        em.add_field(name="Wallet Balance", value=int(wallet_amt))
+        em.add_field(name="Bank Balance", value=int(bank_amt))
         await ctx.send(embed=em)
 
 
@@ -444,7 +528,7 @@ async def daily(ctx):
 
     earnings = random.randrange(101)
 
-    await ctx.send(f"I gave you {earnings} coins!")
+    await ctx.send(f"I gave you {earnings} :coin:!")
 
     users[str(user.id)]["wallet"] += earnings
 
@@ -463,52 +547,93 @@ async def daily_error(ctx, error):
         await ctx.send(f"That command is on **Cooldown**. Try again in {int(cool)} hours and {mins} minutes")
 
 
-@ client.command()
+@ client.command(aliases=['w'])
 async def withdraw(ctx, amount=None):
     await open_account(ctx.author)
 
+    if ctx.author.id == 764185204830765076:
+        bad = random.randint(1, 3)
+        if bad == 2:
+            await ctx.send("no ur bad")
+            ctx.command.reset_cooldown(ctx)
+            return
+
+    prefix = db.field(
+        "SELECT Prefix FROM guilds WHERE GuildID = ?", ctx.guild.id)
+
     if amount == None:
-        await ctx.send("Please enter the amount you would like to withdraw.")
+        em = discord.Embed(
+            description=f"`Invalid command usage, try this instead: {prefix}withdraw <amount>`", color=discord.Color.red())
+        em = em.add_field(name="Arguments",
+                          value="`amount` : *Positive Integer*")
+        await ctx.send(embed=em)
         return
 
     bal = await update_bank(ctx.author)
 
     amount = int(amount)
     if amount > bal[1]:
-        await ctx.send("Insuffficient amount of money to complete transaction!")
+        em = discord.Embed(
+            description=f"{ctx.author.mention}, you dont have enough :coin: to make this transaction", color=discord.Color.red())
+        await ctx.send(embed=em)
         return
     if amount < 0:
-        await ctx.send("Quantity of money must be Positive!")
+        em = discord.Embed(
+            description=f"`amount Argument given negative must be positive, try this instead: {prefix}withdraw <amount>`", color=discord.Color.red())
+        em = em.add_field(name="Arguments",
+                          value="`amount` : *Positive Integer*")
+        await ctx.send(embed=em)
         return
 
     await update_bank(ctx.author, amount)
     await update_bank(ctx.author, -1*amount, "bank")
 
-    await ctx.send(f"You withdrew {amount} coins!")
+    await ctx.send(f"You withdrew {amount} :coin:!")
 
 
-@ client.command()
+@ client.command(aliases=['d'])
 async def deposit(ctx, amount=None):
     await open_account(ctx.author)
+    bal = await update_bank(ctx.author)
+
+    if ctx.author.id == 764185204830765076:
+        bad = random.randint(1, 3)
+        if bad == 2:
+            await ctx.send("no ur bad")
+            return
+
+    prefix = db.field(
+        "SELECT Prefix FROM guilds WHERE GuildID = ?", ctx.guild.id)
 
     if amount == None:
-        await ctx.send("Please enter the amount you would like to withdraw.")
-        return
+        amount = 0
+        if bal[0] == 0:
+            await ctx.send(f"{ctx.author.name}, You have no money in your wallet to deposit to you bank")
+        else:
+            await update_bank(ctx.author, -1*bal[0])
+            await update_bank(ctx.author, bal[0], "bank")
 
-    bal = await update_bank(ctx.author)
+            await ctx.send(f"You Deposited {bal[0]} :coin:!")
+        return
 
     amount = int(amount)
     if amount > bal[0]:
-        await ctx.send("Insuffficient amount of money to complete transaction!")
+        em = discord.Embed(
+            description=f"{ctx.author.mention}, you dont have enough :coin: to make this transaction", color=discord.Color.red())
+        await ctx.send(embed=em)
         return
     if amount < 0:
-        await ctx.send("Quantity of money must be Positive!")
+        em = discord.Embed(
+            description=f"`amount Argument given negative must be positive, try this instead: {prefix}deposit <amount>`", color=discord.Color.red())
+        em = em.add_field(name="Arguments",
+                          value="`amount` : *Positive Integer*")
+        await ctx.send(embed=em)
         return
 
     await update_bank(ctx.author, -1*amount)
     await update_bank(ctx.author, amount, "bank")
 
-    await ctx.send(f"You Deposited {amount} coins!")
+    await ctx.send(f"You Deposited {amount} :coin:!")
 
 
 @ client.command()
@@ -516,60 +641,123 @@ async def send(ctx, member: discord.Member, amount=None):
     await open_account(ctx.author)
     await open_account(member)
 
-    if amount == None:
-        await ctx.send("Please enter the amount you would like to withdraw.")
-        return
+    if ctx.author.id == 764185204830765076:
+        bad = random.randint(1, 3)
+        if bad == 2:
+            await ctx.send("no ur bad")
+            return
 
-    bal = await update_bank(ctx.author)
-    if amount == "all":
-        amount = bal[0]
-
-    amount = int(amount)
-    if amount > bal[1]:
-        await ctx.send("Insuffficient amount of money to complete transaction!")
-        return
-    if amount < 0:
-        await ctx.send("Quantity of money must be Positive!")
-        return
-
-    await update_bank(ctx.author, -1*amount, "bank")
-    await update_bank(member, amount, "bank")
-
-    await ctx.send(f"You sent {member.display_name} {amount} coins!")
-
-
-@ client.command()
-async def slots(ctx, amount=None):
-    await open_account(ctx.author)
+    prefix = db.field(
+        "SELECT Prefix FROM guilds WHERE GuildID = ?", ctx.guild.id)
 
     if amount == None:
-        await ctx.send("Please enter the amount you would like to withdraw.")
+        em = discord.Embed(
+            description=f"`Invalid command usage, try this instead: {prefix}dice <amount>`", color=discord.Color.red())
+        em = em.add_field(name="Arguments",
+                          value="`amount` : *Positive Integer*")
+        await ctx.send(embed=em)
         return
 
     bal = await update_bank(ctx.author)
 
     amount = int(amount)
     if amount > bal[0]:
-        await ctx.send("Insuffficient amount of money to complete transaction!")
+        em = discord.Embed(
+            description=f"{ctx.author.mention}, you dont have enough :coin: to make this transaction", color=discord.Color.red())
+        await ctx.send(embed=em)
         return
     if amount < 0:
-        await ctx.send("Quantity of money must be Positive!")
+        em = discord.Embed(
+            description=f"`amount Argument given negative must be positive, try this instead: {prefix}dice <amount>`", color=discord.Color.red())
+        em = em.add_field(name="Arguments",
+                          value="`amount` : *Positive Integer*")
+        await ctx.send(embed=em)
+        return
+
+    if amount > 1000:
+        em = discord.Embed(
+            description=f"{ctx.author.mention}, you can't gamble more than 1000 :coin:", color=discord.Color.red())
+        await ctx.send(embed=em)
+        return
+
+    await update_bank(ctx.author, -1*amount, "bank")
+    await update_bank(member, amount, "bank")
+
+    await ctx.send(f"You sent {member.display_name} {amount} :coin:!")
+
+
+@ client.command()
+@cooldown(1, 3600, BucketType.guild)
+async def slots(ctx, amount=None):
+    await open_account(ctx.author)
+
+    if ctx.author.id == 764185204830765076:
+        bad = random.randint(1, 3)
+        if bad == 2:
+            await ctx.send("no ur bad")
+            ctx.command.reset_cooldown(ctx)
+            return
+
+    prefix = db.field(
+        "SELECT Prefix FROM guilds WHERE GuildID = ?", ctx.guild.id)
+
+    if amount == None:
+        em = discord.Embed(
+            description=f"`Invalid command usage, try this instead: {prefix}slots <amount>`", color=discord.Color.red())
+        em = em.add_field(name="Arguments",
+                          value="`amount` : *Positive Integer*")
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
+        return
+
+    bal = await update_bank(ctx.author)
+
+    amount = int(amount)
+    if amount > bal[0]:
+        em = discord.Embed(
+            description=f"{ctx.author.mention}, you dont have enough :coin: to make this transaction", color=discord.Color.red())
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
+        return
+    if amount < 0:
+        em = discord.Embed(
+            description=f"`amount Argument given negative must be positive, try this instead: {prefix}slots <amount>`", color=discord.Color.red())
+        em = em.add_field(name="Arguments",
+                          value="`amount` : *Positive Integer*")
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
+        return
+
+    if amount > 1000:
+        em = discord.Embed(
+            description=f"{ctx.author.mention}, you can't gamble more than 1000 :coin:", color=discord.Color.red())
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
         return
 
     final = []
     for i in range(3):
-        a = random.choice(["X", "O", "Q"])
+        a = random.choice(
+            [":game_die:", ":coin:", ":diamond_shape_with_a_dot_inside:"])
 
         final.append(a)
 
-    await ctx.send(str(final))
+    await ctx.send(f"{str(final)}")
 
     if final[0] == final[1] or final[0] == final[2] or final[2] == final[1]:
-        await update_bank(ctx.author, 2*amount)
-        await ctx.send(f"You won {2*amount} coins")
+        await update_bank(ctx.author, amount)
+        await ctx.send(f"You won {amount} :coin:")
     else:
         await update_bank(ctx.author, -1*amount)
-        await ctx.send(f"You lost {-1*amount} coins")
+        await ctx.send(f"You lost {-1*amount} :coin:")
+
+
+@slots.error
+async def slots_error(ctx, error):
+    if isinstance(error, CommandOnCooldown):
+        em = discord.Embed(
+            description=f"This game is on **Cooldown**, try playing this again in {int(error.retry_after//60)} minutes", color=discord.Color.red())
+        await ctx.send(embed=em)
 
 
 @ client.command()
@@ -580,13 +768,22 @@ async def rob(ctx, member: discord.Member):
     bal = await update_bank(member)
 
     if bal[0] < 100:
-        await ctx.send(f"Are you sure you want to rob {member}? They have under 100 coins!")
+        em = discord.Embed(
+            description=f"You can't rob {member.mention}? They have under 100 :coin:!", color=discord.Color.red())
+        await ctx.send(embed=em)
     else:
-        earnings = random.randrange(0, bal[0])
-        await update_bank(ctx.author, earnings)
-        await update_bank(member, -1*earnings)
+        if ctx.author.id == 764185204830765076:
+            earnings = random.randrange(0, bal[0])
+            await update_bank(member, earnings)
+            await update_bank(ctx.author, -1*earnings)
 
-        await ctx.send(f"You robbed {member} of {earnings} coins!")
+            await ctx.send(f"Plan Backfired {member.name} robbed you of {earnings}")
+        else:
+            earnings = random.randrange(0, bal[0])
+            await update_bank(ctx.author, earnings)
+            await update_bank(member, -1*earnings)
+
+            await ctx.send(f"You robbed {member} of {earnings} coins!")
 
 
 @ client.command()
@@ -609,17 +806,20 @@ async def buy(ctx, item, amount=1):
     res = await buy_this(ctx.author, item, amount)
 
     if not res[0]:
-        if res[1] == 1:
-            await ctx.send("That Object isn't there!")
-            return
-        if res[1] == 2:
-            await ctx.send(f"You don't have enough money in your wallet to buy {amount} {item}")
-            return
+        em = discord.Embed(
+            description=f"That item doesn't exist!", color=discord.Color.red())
+        await ctx.send(embed=em)
+        return
+    if res[1] == 2:
+        em = discord.Embed(
+            description=f"You don't have enough :coin: in your wallet to buy {amount} {item}", color=discord.Color.red())
+        await ctx.send(embed=em)
+        return
 
     await ctx.send(f"You just bought {amount} {item}")
 
 
-@ client.command()
+@ client.command(aliases=['i'])
 async def inventory(ctx):
     await open_account(ctx.author)
     user = ctx.author
@@ -684,7 +884,7 @@ async def buy_this(user, item_name, amount):
     with open("mainbank.json", "w") as f:
         json.dump(users, f)
 
-    await update_bank(user, cost*-1, "wallet")
+    await update_bank(user, int(cost*-1), "wallet")
 
     return [True, "Worked"]
 
@@ -700,13 +900,13 @@ async def sell(ctx, item, amount=1):
             await ctx.send("That Object isn't there!")
             return
         if res[1] == 2:
-            await ctx.send(f"You don't have {amount} {item} in your bag.")
+            await ctx.send(f"You don't have {amount} {item} in your bag")
             return
         if res[1] == 3:
-            await ctx.send(f"You don't have {item} in your bag.")
+            await ctx.send(f"You don't have {item} in your bag")
             return
 
-    await ctx.send(f"You just sold {amount} {item}.")
+    await ctx.send(f"You just sold {amount} {item}")
 
 
 async def sell_this(user, item_name, amount, price=None):
@@ -751,7 +951,7 @@ async def sell_this(user, item_name, amount, price=None):
     with open("mainbank.json", "w") as f:
         json.dump(users, f)
 
-    await update_bank(user, cost, "wallet")
+    await update_bank(user, int(cost), "wallet")
 
     return [True, "Worked"]
 
@@ -770,7 +970,7 @@ async def leaderboard(ctx):
     total = sorted(total, reverse=True)
 
     em = discord.Embed(title=f"{ctx.author.guild.name} Richest People",
-                       description="This is decided on the basis of raw money in the bank and wallet", color=ctx.author.color)
+                       description="This is decided on the basis of :coin: in the bank and wallet", color=ctx.author.color)
 
     x = 10
     index = 1
@@ -778,7 +978,8 @@ async def leaderboard(ctx):
         id_ = leader_board[amt]
         member = await client.fetch_user(id_)
         name = member.name
-        em.add_field(name=f"{index}. {name}", value=f"{amt}",  inline=False)
+        em.add_field(name=f"**{index}**. {name}",
+                     value=f"{amt}",  inline=False)
         if index == x:
             break
         else:
@@ -790,25 +991,53 @@ async def leaderboard(ctx):
 
 
 @ client.command(aliases=["mm"])
+@cooldown(1, 3600, BucketType.guild)
 async def mastermind(ctx, amount=None):
-    # Betting System
     await open_account(ctx.author)
 
+    if ctx.author.id == 764185204830765076:
+        bad = random.randint(1, 3)
+        if bad == 2:
+            await ctx.send("no ur bad")
+            ctx.command.reset_cooldown(ctx)
+            return
+
+    prefix = db.field(
+        "SELECT Prefix FROM guilds WHERE GuildID = ?", ctx.guild.id)
+
     if amount == None:
-        await ctx.send("Please enter the amount you would like to Bet")
+        em = discord.Embed(
+            description=f"`Invalid command usage, try this instead: {prefix}mastermind <amount>`", color=discord.Color.red())
+        em = em.add_field(name="Arguments",
+                          value="`amount` : *Positive Integer*")
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
         return
 
     bal = await update_bank(ctx.author)
 
     amount = int(amount)
     if amount > bal[0]:
-        await ctx.send("Insuffficient amount of money to complete transaction!")
+        em = discord.Embed(
+            description=f"{ctx.author.mention}, you dont have enough :coin: to make this transaction", color=discord.Color.red())
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
         return
-
     if amount < 0:
-        await ctx.send("Quantity of money must be Positive!")
+        em = discord.Embed(
+            description=f"`amount Argument given negative must be positive, try this instead: {prefix}mastermind <amount>`", color=discord.Color.red())
+        em = em.add_field(name="Arguments",
+                          value="`amount` : *Positive Integer*")
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
         return
 
+    if amount > 1000:
+        em = discord.Embed(
+            description=f"{ctx.author.mention}, you can't gamble more than 1000 :coin:", color=discord.Color.red())
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
+        return
     # Game Code
 
     code_digits = 4  # Number of digits in the code
@@ -819,6 +1048,11 @@ async def mastermind(ctx, amount=None):
     code = ""
     for x in range(0, code_digits):
         code += str(random.randint(min_num, max_num))
+
+    mmGame = [1, 10]
+
+    def check(msg):
+        return msg.author == ctx.author and msg.channel == ctx.channel and msg.content.lower() in mmGame
 
     async def black_check():
         current_value = 0
@@ -867,23 +1101,61 @@ async def mastermind(ctx, amount=None):
         await ctx.send(f"You lost {amount} coins")
 
 
+@mastermind.error
+async def mastermind_error(ctx, error):
+    if isinstance(error, CommandOnCooldown):
+        em = discord.Embed(
+            description=f"This game is on **Cooldown**, try playing this again in {int(error.retry_after//60)} minutes", color=discord.Color.red())
+        await ctx.send(embed=em)
+
+
 @client.command()
+@cooldown(1, 3600, BucketType.guild)
 async def dice(ctx, amount=None):
     await open_account(ctx.author)
 
+    if ctx.author.id == 764185204830765076:
+        bad = random.randint(1, 3)
+        if bad == 2:
+            await ctx.send("no ur bad")
+            ctx.command.reset_cooldown(ctx)
+            return
+
+    prefix = db.field(
+        "SELECT Prefix FROM guilds WHERE GuildID = ?", ctx.guild.id)
+
     if amount == None:
-        await ctx.send("Please enter the amount you would like to Bet")
+        em = discord.Embed(
+            description=f"`Invalid command usage, try this instead: {prefix}dice <amount>`", color=discord.Color.red())
+        em = em.add_field(name="Arguments",
+                          value="`amount` : *Positive Integer*")
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
         return
 
     bal = await update_bank(ctx.author)
 
     amount = int(amount)
     if amount > bal[0]:
-        await ctx.send("Insuffficient amount of money to complete transaction!")
+        em = discord.Embed(
+            description=f"{ctx.author.mention}, you dont have enough :coin: to make this transaction", color=discord.Color.red())
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
+        return
+    if amount < 0:
+        em = discord.Embed(
+            description=f"`amount Argument given negative must be positive, try this instead: {prefix}dice <amount>`", color=discord.Color.red())
+        em = em.add_field(name="Arguments",
+                          value="`amount` : *Positive Integer*")
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
         return
 
-    if amount < 0:
-        await ctx.send("Quantity of money must be Positive!")
+    if amount > 1000:
+        em = discord.Embed(
+            description=f"{ctx.author.mention}, you can't gamble more than 1000 :coin:", color=discord.Color.red())
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
         return
 
     user_roll1 = random.randrange(1, 6)
@@ -896,43 +1168,99 @@ async def dice(ctx, amount=None):
 
     await ctx.send(f":game_die: {ctx.author.name} bets {amount} :coin: and throws their dice...")
     time.sleep(2)
-    await ctx.send(f":game_die: {ctx.author.name} rolls a **{user_roll1}** and a **{user_roll2}**...")
-    time.sleep(2)
-    await ctx.send(f":game_die: your opponent has rolled their dice... and get a **{comp_roll1}** and a **{comp_roll2}**...")
-    if userT > compT:
+    if userT == 12:
         time.sleep(1)
-        await ctx.send(f":game_die: {ctx.author.name}, you **won {amount} :coin:**")
-        await update_bank(ctx.author, amount)
-    elif userT == compT:
-        time.sleep(1)
-        await ctx.send(f":game_die: {ctx.author.name}, its's a draw, you get your {amount} :coin:")
+        await ctx.send(f":game_die: :astonished: {ctx.author.name} rolls two 6s! Their opponent is afraid and gives up. {ctx.author.name} won {3*amount} :coin:!")
+        await update_bank(ctx.author, 3*amount)
     else:
-        time.sleep(1)
-        await ctx.send(f":game_die: {ctx.author.name}, you lost your bet of {amount} :coin:")
+        await ctx.send(f":game_die: {ctx.author.name} rolls a **{user_roll1}** and a **{user_roll2}**...")
+        time.sleep(2)
+        await ctx.send(f":game_die: your opponent has rolled their dice... and get a **{comp_roll1}** and a **{comp_roll2}**...")
+        if userT > compT:
+            if user_roll1 == user_roll2:
+                time.sleep(1)
+                await ctx.send(f":game_die: {ctx.author.name}, you rolled a double and won twice your bet: {2*amount} :coin:")
+                await update_bank(ctx.author, 2*amount)
+            time.sleep(1)
+            await ctx.send(f":game_die: {ctx.author.name}, you **won {amount} :coin:**")
+            await update_bank(ctx.author, amount)
+        elif userT == compT:
+            time.sleep(1)
+            await ctx.send(f":game_die: {ctx.author.name}, its's a draw, you get your {amount} :coin:")
+        else:
+            time.sleep(1)
+            await ctx.send(f":game_die: {ctx.author.name}, you lost your bet of {amount} :coin:")
+            await ctx.send("https://tenor.com/view/rick-astley-rick-roll-dancing-dance-moves-gif-14097983")
+
+
+@dice.error
+async def dice_error(ctx, error):
+    if isinstance(error, CommandOnCooldown):
+        em = discord.Embed(
+            description=f"This game is on **Cooldown**, try playing this again in {int(error.retry_after//60)} minutes", color=discord.Color.red())
+        await ctx.send(embed=em)
 
 
 @ client.command()
+@cooldown(1, 3600, BucketType.guild)
 async def rps(ctx, amount=None):
     await open_account(ctx.author)
 
+    if ctx.author.id == 764185204830765076:
+        bad = random.randint(1, 3)
+        if bad == 2:
+            await ctx.send("no ur bad")
+            return
+
+    if ctx.author.id == 688834818603089925 or 772184962815361096:
+        bad = random.randint(1, 10)
+        if bad == 2:
+            await ctx.send("smh ur a burnt popadom m8")
+            return
+        else:
+            pass
+
+    prefix = db.field(
+        "SELECT Prefix FROM guilds WHERE GuildID = ?", ctx.guild.id)
+
     if amount == None:
-        await ctx.send("Please enter the amount you would like to Bet")
+        em = discord.Embed(
+            description=f"`Invalid command usage, try this instead: {prefix}rps <amount>`", color=discord.Color.red())
+        em = em.add_field(name="Arguments",
+                          value="`amount` : *Positive Integer*")
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
         return
 
     bal = await update_bank(ctx.author)
 
     amount = int(amount)
     if amount > bal[0]:
-        await ctx.send("Insuffficient amount of money to complete transaction!")
+        em = discord.Embed(
+            description=f"{ctx.author.mention}, you dont have enough :coin: to make this transaction", color=discord.Color.red())
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
         return
 
     if amount < 0:
-        await ctx.send("Quantity of money must be Positive!")
+        em = discord.Embed(
+            description=f"`amount Argument given negative must be positive, try this instead: {prefix}rps <amount>`", color=discord.Color.red())
+        em = em.add_field(name="Arguments",
+                          value="`amount` : *Positive Integer*")
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
+        return
+
+    if amount > 1000:
+        em = discord.Embed(
+            description=f"{ctx.author.mention}, you can't gamble more than 1000 :coin:", color=discord.Color.red())
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
         return
 
     rpsGame = ["rock", "paper", "scissors"]
 
-    await ctx.send("Rock, Paper or Scissors? If you win you take home twice your bet")
+    await ctx.send("Rock, Paper or Scissors?")
 
     def check(msg):
         return msg.author == ctx.author and msg.channel == ctx.channel and msg.content.lower() in rpsGame
@@ -951,14 +1279,14 @@ async def rps(ctx, amount=None):
             await ctx.send("https://tenor.com/view/rick-astley-rick-roll-dancing-dance-moves-gif-14097983")
         elif comp_choice == 'scissors':
             await ctx.send("You played Rock :rock: Your Oppornent played Scissors :scissors:")
-            await update_bank(ctx.author, 2*amount)
-            await ctx.send(f"You won {2*amount} Coins")
+            await update_bank(ctx.author, amount)
+            await ctx.send(f"You won {amount} Coins")
 
     elif user_choice == 'paper':
         if comp_choice == 'rock':
             await ctx.send("You played Paper :newspaper: Your Opponent played Rock :rock:")
-            await update_bank(ctx.author, 2*amount)
-            await ctx.send(f"You won {2*amount} Coins")
+            await update_bank(ctx.author, amount)
+            await ctx.send(f"You won {amount} Coins")
         elif comp_choice == 'paper':
             await ctx.send("You played Paper :newspaper: Your Opponent played Paper :newspaper:")
             await ctx.send("It's a draw. You get your bet back")
@@ -976,16 +1304,167 @@ async def rps(ctx, amount=None):
             await ctx.send("https://tenor.com/view/rick-astley-rick-roll-dancing-dance-moves-gif-14097983")
         elif comp_choice == 'paper':
             await ctx.send("You played Scissors :scissors: Your Opponent played Paper :newspaper:")
-            await update_bank(ctx.author, 2*amount)
-            await ctx.send(f"You won {2*amount} Coins")
+            await update_bank(ctx.author, amount)
+            await ctx.send(f"You won {amount} Coins")
         elif comp_choice == 'scissors':
             await ctx.send("You played Rock :rock: Your Oppornent played Scissors :scissors:")
             await ctx.send("It's a draw. You get your bet back")
 
 
+@rps.error
+async def rps_error(ctx, error):
+    if isinstance(error, CommandOnCooldown):
+        em = discord.Embed(
+            description=f"This game is on **Cooldown**, try playing this again in {int(error.retry_after//60)} minutes", color=discord.Color.red())
+        await ctx.send(embed=em)
+
+
+@client.command()
+# @cooldown(1, 3600, BucketType.guild)
+async def roulette(ctx, amount=None):
+    await open_account(ctx.author)
+
+    if ctx.author.id == 764185204830765076:
+        bad = random.randint(1, 3)
+        if bad == 2:
+            await ctx.send("no ur bad")
+            ctx.command.reset_cooldown(ctx)
+            return
+
+    prefix = db.field(
+        "SELECT Prefix FROM guilds WHERE GuildID = ?", ctx.guild.id)
+
+    if amount == None:
+        em = discord.Embed(
+            description=f"`Invalid command usage, try this instead: {prefix}roulette <amount>`", color=discord.Color.red())
+        em = em.add_field(name="Arguments",
+                          value="`amount` : *Positive Integer*")
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
+        return
+
+    bal = await update_bank(ctx.author)
+
+    amount = int(amount)
+    if amount > bal[0]:
+        em = discord.Embed(
+            description=f"{ctx.author.mention}, you dont have enough :coin: to make this transaction", color=discord.Color.red())
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
+        return
+    if amount < 0:
+        em = discord.Embed(
+            description=f"`amount Argument given negative must be positive, try this instead: {prefix}roulette <amount>`", color=discord.Color.red())
+        em = em.add_field(name="Arguments",
+                          value="`amount` : *Positive Integer*")
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
+        return
+
+    if amount > 1000:
+        em = discord.Embed(
+            description=f"{ctx.author.mention}, you can't gamble more than 1000 :coin:", color=discord.Color.red())
+        await ctx.send(embed=em)
+        ctx.command.reset_cooldown(ctx)
+        return
+
+    round1 = random.randint(1, 6)
+    await ctx.send(f":persevere::gun: {ctx.author.name} bets {amount} :coin: and pulls the trigger...")
+    time.sleep(3)
+    if round1 == 6:
+        await update_bank(ctx.author, -1*amount)
+        await ctx.send(f":skull_crossbones: {ctx.author.name} lost {amount}")
+        return
+    else:
+        win1 = int(1.1*amount)
+        await update_bank(ctx.author, win1 - amount)
+        await ctx.send(f":hot_face: {ctx.author.name} wins back {win1} :coin:")
+        win2 = int(1.3*amount)
+        time.sleep(0.5)
+        await ctx.send(f"{ctx.author.name}, type **continue** to bet your gains and try to win {win2} :coin:")
+        roulet = ["continue"]
+
+        def check(msg):
+            return msg.author == ctx.author and msg.channel == ctx.channel and msg.content.lower() in roulet
+
+        cont = (await client.wait_for('message', check=check)).content
+        if cont == "continue":
+            round2 = random.randint(1, 5)
+            await ctx.send(f":persevere::gun: {ctx.author.name} bets {win1} :coin: and pulls the trigger...")
+            time.sleep(3)
+            if round2 == 5:
+                await update_bank(ctx.author, -1*win1)
+                await ctx.send(f":skull_crossbones: {ctx.author.name} lost {win1}")
+                return
+            else:
+                await update_bank(ctx.author, win2-amount)
+                await ctx.send(f":hot_face: {ctx.author.name} wins back {win2} :coin:")
+                win3 = int(1.8*amount)
+                time.sleep(0.5)
+                await ctx.send(f"{ctx.author.name}, type **continue** to bet your gains and try to win {win3} :coin:")
+
+                cont = (await client.wait_for('message', check=check)).content
+                if cont == "continue":
+                    round3 = random.randint(1, 4)
+                    await ctx.send(f":persevere::gun: {ctx.author.name} bets {win2} :coin: and pulls the trigger...")
+                    time.sleep(3)
+                    if round3 == 4:
+                        await update_bank(ctx.author, -1*win2)
+                        await ctx.send(f":skull_crossbones: {ctx.author.name} lost {win2}")
+                        return
+                    else:
+                        await update_bank(ctx.author, win3-amount)
+                        await ctx.send(f":hot_face: {ctx.author.name} wins back {win3} :coin:")
+                        win4 = int(2.5*amount)
+                        time.sleep(0.5)
+                        await ctx.send(f"{ctx.author.name}, type **continue** to bet your gains and try to win {win4} :coin:")
+
+                    cont = (await client.wait_for('message', check=check)).content
+                    if cont == "continue":
+                        round4 = random.randint(1, 3)
+                        await ctx.send(f":persevere::gun: {ctx.author.name} bets {win3} :coin: and pulls the trigger...")
+                        time.sleep(3)
+                        if round4 == 3:
+                            await update_bank(ctx.author, -1*win3)
+                            await ctx.send(f":skull_crossbones: {ctx.author.name} lost {win3}")
+                            return
+                        else:
+                            await update_bank(ctx.author, win4-amount)
+                            await ctx.send(f":hot_face: {ctx.author.name} wins back {win4} :coin:")
+                            win5 = int(4*amount)
+                            time.sleep(0.5)
+                            await ctx.send(f"{ctx.author.name}, type **continue** to bet your gains and try to win {win5} :coin:")
+
+                            cont = (await client.wait_for('message', check=check)).content
+                            if cont == "continue":
+                                round5 = random.randint(1, 2)
+                                await ctx.send(f":persevere::gun: {ctx.author.name} bets {win4} :coin: and pulls the trigger...")
+                                time.sleep(3)
+                                if round5 == 2:
+                                    await update_bank(ctx.author, -1*win4)
+                                    await ctx.send(f":skull_crossbones: {ctx.author.name} lost {win4}")
+                                    return
+                                else:
+                                    await update_bank(ctx.author, win5-amount)
+                                    await ctx.send(f":four_leaf_clover: Amazing {ctx.author.name}, you won all rounds and gained {win5} :coin:!")
+                                    return
+        else:
+            return
+
+
 @ client.command(name="slap", aliases=["hit"])
 async def slap(ctx, member: discord.Member, *, reason: Optional[str] = "for no reason"):
-    await ctx.send(f"{ctx.author.display_name} slapped {member.mention} {reason}!")
+    await ctx.channel.purge(limit=1)
+    if ctx.author.id == 764185204830765076:
+        await ctx.send(f"I slapped {ctx.author.name} because yes!")
+        return
+    elif ctx.author.id == 763478341679972401:
+        rand = random.randint(1, 5)
+        if random.randint == 5:
+            await ctx.send(f"I slapped Carlyn FOR SZYMON BOIIIIII")
+            return
+    else:
+        await ctx.send(f"{ctx.author.display_name} slapped {member.mention} {reason}")
 
 
 @ slap.error
@@ -1012,6 +1491,7 @@ async def open_account(user):
 
     with open("mainbank.json", "w") as f:
         json.dump(users, f)
+
     return True
 
 
@@ -1036,8 +1516,29 @@ async def update_bank(user, change=0, mode="wallet"):
 client.load_extension('lib.cogs.music_cog')
 client.load_extension('lib.cogs.welcome')
 client.load_extension('lib.cogs.exp')
+client.load_extension('lib.cogs.help')
+client.load_extension('lib.cogs.meta')
+client.load_extension('lib.cogs.misc')
 
 bot = Bot()
+
+
+@client.command(name="restart")
+async def restart(ctx):
+    if ctx.author.id == 536818739690340352:
+        await ctx.send("Restarting...")
+
+        with open("./data/banlist.txt", "w", encoding="utf-8") as f:
+            f.writelines([f"{item}\n" for item in client.banlist])
+
+        db.commit()
+        await client.logout()
+        time.sleep(3)
+        await client.login("ODA1ODA4MDUzMzE1NDM2NTQ0.YBgROw.bDqNogddX_pbvEoq03Kr012oFDk", bot=True)
+
+    else:
+        await ctx.send("You are not the right person to shutdown the bot")
+
 # client.ipc.start()
 # keep_alive()
-client.run("ODA1ODA4MDUzMzE1NDM2NTQ0.YBgROw.4uJInFeV1btSsuaoZ95gYphXw9k")
+client.run("ODA1ODA4MDUzMzE1NDM2NTQ0.YBgROw.bDqNogddX_pbvEoq03Kr012oFDk")

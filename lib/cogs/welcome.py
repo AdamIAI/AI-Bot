@@ -18,7 +18,10 @@ class Welcome(Cog):
 
     @Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        db.execute("INSERT INTO exp (UserID) VALUES (?)", member.id)
+        try:
+            db.execute("INSERT INTO exp (UserID) VALUES (?)", member.id)
+        except:
+            pass
         await self.bot.get_channel(836317763139665975).send(f"Welcome **{member.mention}** to **{member.guild.name}**!")
         try:
             await member.send(f"Welcome to **{member.guild.name}**! Enjoy your stay!")
@@ -26,12 +29,12 @@ class Welcome(Cog):
         except Forbidden:
             pass
 
-        await member.add_roles(member.guild.get_role(836317762724823040))
-
     @Cog.listener()
     async def on_member_remove(self, member):
-        db.execute("DELETE FROM exp WHERE UserID = ?", member.id)
-        await self.bot.get_channel(836317763139665975).send(f"{member.display_name} has left {member.guild.name}")
+        try:
+            await self.bot.get_channel(836317763139665975).send(f"{member.display_name} has left {member.guild.name}")
+        except:
+            pass
 
 
 def setup(bot):
