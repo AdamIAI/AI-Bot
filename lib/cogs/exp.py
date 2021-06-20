@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from random import randint
 from typing import Optional
 
+import discord
 from discord import Member, Embed, member
 from discord.ext.menus import Menu, MenuPages, MenuError, ListPageSource
 from discord.ext.commands import Cog
@@ -47,30 +48,9 @@ class exp(Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    def update_db(self):
-        db.multiexec("INSERT OR IGNORE INTO guilds (GuildID) VALUES (?)",
-                     ((guild.id,) for guild in self.guilds))
-
-        db.multiexec("INSERT OR IGNORE INTO exp (UserID) VALUES (?)",
-                     ((member.id,) for member in self.guild.members if not member.bot))
-
-        db.execute("INSERT OR IGNORE INTO bank (GuildID, UserID) VALUES",
-                   ((member.guild.id, member.id) for member in self.members if not member.bot))
-
-        to_remove = []
-        stored_members = db.column("SELECT UserID FROM exp")
-        for id_ in stored_members:
-            if not self.guild.get_member(id_):
-                to_remove.append(id_)
-
-        db.multiexec("DELETE FROM exp WHERE UserID = ?",
-                     ((id_,) for id_ in to_remove))
-
-        db.commit()
-
     async def process_xp(self, message):
         xp, lvl, xplock = db.record(
-            "SELECT XP, Level, XPLock FROM exp WHERE UserID = ?", message.author.id)
+            "SELECT XP, Level, XPLock FROM exp WHERE GuildID = ? AND UserID = ?", message.author.guild.id, message.author.id)
 
         if datetime.utcnow() > datetime.fromisoformat(xplock):
             await self.add_xp(message, xp, lvl)
@@ -79,18 +59,63 @@ class exp(Cog):
         xp_to_add = randint(15, 25)
         new_lvl = int(((xp + xp_to_add)//28) ** 0.35)
 
-        db .execute("UPDATE exp SET XP = XP + ?, Level = ?, XPLock = ? WHERE UserID = ?",
-                    xp_to_add, new_lvl, (datetime.utcnow()+timedelta(seconds=60)).isoformat(), message.author.id)
+        db .execute("UPDATE exp SET XP = XP + ?, Level = ?, XPLock = ? WHERE GuildID = ? AND UserID = ?",
+                    xp_to_add, new_lvl, (datetime.utcnow()+timedelta(seconds=60)).isoformat(), message.author.guild.id, message.author.id)
 
         if new_lvl > lvl:
             await message.channel.send(f"GG {message.author.mention}, you have levelled up to Level {new_lvl:,}!")
+            await self.check_lvl_rewards(message, new_lvl)
+
+    async def check_lvl_rewards(self, message, lvl):
+        if lvl >= 50:
+            await self.channel.purge(limit=1)
+            noble = discord.utils.get(self.guild.roles, name="👑 𝔎𝔦𝔫𝔤𝔰𝔪𝔢𝔫")
+            if not noble:
+                noble = await self.guild.create_role(name="👑 𝔎𝔦𝔫𝔤𝔰𝔪𝔢𝔫", color=discord.Color.gold())
+            await member.add_roles(noble)
+            await message.channel.send(f"{message.author.mention} has been granted the final role you can be given for server activity!")
+        elif 40 <= lvl < 50:
+            await self.channel.purge(limit=1)
+            Kings = discord.utils.get(
+                self.guild.roles, name="✯𝕹𝖔𝖇𝖑𝖊𝖘")
+            if not Kings:
+                Kings = await self.guild.create_role(name="✯𝕹𝖔𝖇𝖑𝖊𝖘", color=discord.Color.blue())
+            await member.add_roles(Kings)
+        elif 30 <= lvl < 40:
+            await self.channel.purge(limit=1)
+            Anthony = discord.utils.get(
+                self.guild.roles, name="Lord Anthony's People", color=discord.Color.blurple())
+            if not Anthony:
+                Anthony = await self.guild.create_role(name="Lord Anthony's People")
+            await member.add_roles(Anthony)
+        elif 20 <= lvl < 30:
+            await self.channel.purge(limit=1)
+            Vactive = discord.utils.get(
+                self.guild.roles, name="Very Active")
+            if not Vactive:
+                Vactive = await self.guild.create_role(name="Very Active", color=discord.Color.green())
+            await member.add_roles(Vactive)
+        elif 10 <= lvl < 20:
+            await self.channel.purge(limit=1)
+            Active = discord.utils.get(
+                self.guild.roles, name="Active")
+            if not Active:
+                Active = await self.guild.create_role(name="Active", color=discord.Color.orange())
+            await member.add_roles(Active)
+        elif 5 <= lvl < 9:
+            await self.channel.purge(limit=1)
+            Celestial = discord.utils.get(
+                self.guild.roles, name="Celestial", color=discord.Color.purple())
+            if not Celestial:
+                Celestial = await self.guild.create_role(name="Celestial")
+            await member.add_roles(Celestial)
 
     @ command(name="level")
     async def display_level(self, ctx, target: Optional[Member]):
         target = target or ctx.author
 
         xp, lvl = db.record(
-            "SELECT XP, Level FROM exp WHERE UserID = ?", target.id) or (None, None)
+            "SELECT XP, Level FROM exp WHERE GuildID = ? AND UserID = ?", target.guild.id, target.id) or (None, None)
         if xp > 0:
             await ctx.send(f"**{target.display_name}** is on level {lvl:,} with {xp:,} xp")
         else:
@@ -100,17 +125,17 @@ class exp(Cog):
     async def display_rank(self, ctx, target: Optional[Member]):
         target = target or ctx.author
 
-        ids = db.column("SELECT UserID FROM exp ORDER BY XP DESC")
+        ids = db.column(
+            "SELECT UserID FROM exp WHERE GuildID = ? ORDER BY XP DESC ", ctx.guild.id)
         try:
-            await ctx.send(f"**{target.display_name}** is rank **#{idx.index(target.id)+1}** of {len(ids)} people in **{ctx.author.guild.name}**")
+            await ctx.send(f"**{target.display_name}** is rank **#{ids.index(target.id)+1}** of {len(ids)} people in **{ctx.author.guild.name}**")
         except ValueError:
-            await ctx.send(f"**{target.display_name}** is not tracked by the leveling system")
-            self.update_db()
+            await ctx.send(f"**{target.display_name}** is not tracked by the leveling system or has not sent a message yet")
 
     @ command(name="leaderboardxp", aliases=["leadxp"])
     async def display_leaderboard(self, ctx):
         records = db.records(
-            "SELECT UserID, XP, Level FROM exp ORDER BY XP DESC")
+            "SELECT UserID, XP, Level FROM exp WHERE GuildID = ? ORDER BY XP DESC", ctx.guild.id)
 
         menu = MenuPages(source=HelpMenu(ctx, records),
                          clear_reactions_after=True, delete_message_after=60.0, timeout=60.0)

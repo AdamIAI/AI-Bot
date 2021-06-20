@@ -9,12 +9,15 @@ from discord import Intents
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from discord import Embed, File, DMChannel
+from discord.colour import Color
 from discord.errors import HTTPException, Forbidden
 from discord.ext.commands import Bot as BotBase
 from discord.ext.commands import Context
 from discord.ext.commands import (CommandNotFound, BadArgument, MissingRequiredArgument,
                                   CommandOnCooldown)
 from discord.ext.commands import when_mentioned_or, command, has_permissions
+from discord.ext.commands.converter import _get_from_guilds
+from discord.flags import MemberCacheFlags
 from lib.db import db
 
 OWNER_IDS = [536818739690340352]
@@ -70,22 +73,26 @@ class Bot(BotBase):
         db.multiexec("INSERT OR IGNORE INTO guilds (GuildID) VALUES (?)",
                      ((guild.id,) for guild in self.guilds))
 
-        db.multiexec("INSERT OR IGNORE INTO exp (UserID) VALUES (?)",
-                     ((member.id,) for member in self.guild.members if not member.bot))
+        # db.multiexec("INSERT OR IGNORE INTO exp (GuildID) VALUES (?)",
+        # ((guild.id,) for guild in self.guilds))
+
+       # db.multiexec("INSERT OR IGNORE INTO exp (UserID) VALUES (?)",
+        # ((member.id,) for member in self.guild.members if not member.bot))
+
+        # db.multiexec("INSERT OR IGNORE INTO bank (GuildID, UserID) VALUES (?, ?)",
+        #              ((guild.id,) for guild in self.guilds), (member.id,) for member in self.guild.members if not member.bot)
+
+        for guild in self.guilds:
+            for member in guild.members:
+                if not member.bot:
+                    db.execute(
+                        "INSERT OR IGNORE INTO exp (GuildID, UserID) VALUES (?, ?)", guild.id, member.id)
+
+                    db.execute(
+                        "INSERT OR IGNORE INTO bank (GuildID, UserID) VALUES (?, ?)", guild.id, member.id)
 
         db.multiexec("INSERT OR IGNORE INTO members (UserID) VALUES (?)", ((
             member.id,) for member in self.guild.members if not member.bot))
-
-        db.open_bank()
-
-        to_remove = []
-        stored_members = db.column("SELECT UserID FROM exp")
-        for id_ in stored_members:
-            if not self.guild.get_member(id_):
-                to_remove.append(id_)
-
-        db.multiexec("DELETE FROM exp WHERE UserID = ?",
-                     ((id_,) for id_ in to_remove))
 
         db.commit()
 
@@ -148,6 +155,17 @@ class Bot(BotBase):
 
     async def on_guild_join(self, guild):
 
+        # if guild.id == 759091344617766933:
+        #     Adam = self.get_user(536818739690340352)
+        #     Jeremy = self.get_user(759097824502612029)
+        #     Tom = self.get_user(610919121734991931)
+        #     Ernest = self.get_user(534443891567362068)
+        #     Anthony = self.get_user(495945320786690060)
+
+        #     em = discord.Embed(
+        #         description=f"Hello Everyone, I am the Bot Adam ({Adam.mention}) has been working on for the past month. Check out all of my commands on `a!help` and test them out. I would also like to thank Jeremy ({Jeremy.mention}), Tom ({Tom.mention}), Ernest ({Ernest.mention}) and Anthony ({Anthony.mention}) for helping me test the bot. Have a great day :))", color=discord.Color.red())
+        #     await self.get_channel(797135125661089822).send(embed=em)
+
         with open("prefixes.json", "r") as f:
             prefixes = json.load(f)
 
@@ -158,11 +176,20 @@ class Bot(BotBase):
         with open("prefixes.json", "w") as f:
             json.dump(prefixes, f)
 
-        db.execute("UPDATE guilds SET Prefix = ? WHERE GuildID = ?",
-                   pre, guild.id)
+        db.multiexec("INSERT OR IGNORE INTO guilds (GuildID) VALUES (?)",
+                     ((guild.id,) for guild in self.guilds))
 
-        db.multiexec("INSERT OR IGNORE INTO exp (UserID) VALUES (?)",
-                     ((member.id,) for member in self.guild.members if not member.bot))
+        for guild in self.guilds:
+            for member in guild.members:
+                if not member.bot:
+                    db.execute(
+                        "INSERT OR IGNORE INTO bank (GuildID, UserID) VALUES (?, ?)", guild.id, member.id)
+
+                    db.execute(
+                        "INSERT OR IGNORE INTO exp (GuildID, UserID) VALUES (?, ?)", guild.id, member.id)
+
+        # db.multiexec("INSERT OR IGNORE INTO members (UserID) VALUES (?)", ((
+        #     member.id,) for member in self.guild.members if not member.bot))
 
         to_remove = []
         stored_members = db.column("SELECT UserID FROM exp")
@@ -174,6 +201,10 @@ class Bot(BotBase):
                      ((id_,) for id_ in to_remove))
 
         db.commit()
+
+        # link = await self.guild.systemChannel.create_invite(max_age=300)
+        Adam = self.get_user(536818739690340352)
+        await Adam.send(f"I have joined **{guild.name}**")
 
 
 bot = Bot()

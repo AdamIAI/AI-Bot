@@ -19,10 +19,14 @@ class Welcome(Cog):
     @Cog.listener()
     async def on_member_join(self, member: discord.Member):
         try:
-            db.execute("INSERT INTO exp (UserID) VALUES (?)", member.id)
+            db.execute("INSERT INTO exp (GuildID, UserID) VALUES (?, ?)",
+                       member.guild.id, member.id)
         except:
             pass
-        await self.bot.get_channel(836317763139665975).send(f"Welcome **{member.mention}** to **{member.guild.name}**!")
+        # if member.id == 536818739690340352:
+        #     await self.bot.get_channel(836317763139665975).send(f"MY CREATOR {member.mention} HAS JOINED THE SERVER")
+        if member.guild.id == 759091344617766933:
+            await self.bot.get_channel(797135125661089822).send(f"Welcome **{member.mention}** to **{member.guild.name}**!")
         try:
             await member.send(f"Welcome to **{member.guild.name}**! Enjoy your stay!")
 
@@ -32,7 +36,8 @@ class Welcome(Cog):
     @Cog.listener()
     async def on_member_remove(self, member):
         try:
-            await self.bot.get_channel(836317763139665975).send(f"{member.display_name} has left {member.guild.name}")
+            if member.guild.id == 759091344617766933:
+                await self.bot.get_channel(797135125661089822).send(f"**{member.display_name}** has left the server")
         except:
             pass
 

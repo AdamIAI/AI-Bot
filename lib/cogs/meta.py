@@ -22,7 +22,7 @@ class Meta(Cog):
 
         status = ["playing Break Adam's Monitor",
                   "watching a!help | {users:,} users in {guilds:,} servers"]
-        self._message = random.choice(status)
+        self._message = "watching a!help | {users:,} users in {guilds:,} servers"
 
         bot.scheduler.add_job(self.set, CronTrigger(second=0))
 
@@ -88,9 +88,7 @@ class Meta(Cog):
 
         await ctx.send(embed=embed)
 
-
-
-    @command(name="shutdown")
+    @command(name="shutdown", aliases=['die', 'bonkself'])
     async def shutdown(self, ctx):
         if ctx.author.id == 536818739690340352:
             await ctx.send("Shutting down...")
